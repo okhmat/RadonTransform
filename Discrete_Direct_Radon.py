@@ -13,7 +13,7 @@ num_images = 2
 plt.figure(figsize=(12, 6))
 
 list_of_images = list()
-
+#
 for i in range(num_images):
     plt.subplot(1, 2, i+1)
     if i == 0:
@@ -28,10 +28,18 @@ for i in range(num_images):
         list_of_images[-1][ (N - size) // 2:(N - size) // 2 + size,
                             (N - size) // 2:(N - size) // 2 + size  ] = im
 
-    # check, that
+    # check, that the current downloading image has correct shape
     assert list_of_images[-1].shape == (N, N)
 
     plt.imshow(list_of_images[-1], cmap=plt.cm.Greys_r)
+    if i == 0:
+        plt.title('Original Phantom 1024x1024 pix.')
+        plt.xlabel('x')
+        plt.ylabel('y')
+    elif i == 1:
+        plt.title('Original Lena 1024x1024 pix.')
+        plt.xlabel('x')
+        plt.ylabel('y')
 
 plt.show()
 
@@ -44,18 +52,30 @@ plt.show()
 
 plt.figure(figsize=(12,6))
 
+phantom_angle = -60
+lena_angle = +30
+
 for i in range(num_images):
     plt.subplot(1, 2, i+1)
     if i == 0:
         # rotate 'phantom' image on 60 degrees clockwise (-60 degrees)
         rotated_im = rotate(list_of_images[i], -60)
         assert rotated_im.shape == (N, N)
+
         plt.imshow(rotated_im, cmap=plt.cm.Greys_r)
+        plt.title('Rotated on {} degrees Phantom'.format(phantom_angle))
+        plt.xlabel('x')
+        plt.ylabel('y')
+
     elif i == 1:
         # rotate 'Lena' on +30 degrees
         rotated_im = rotate(list_of_images[i], +30)
         assert rotated_im.shape == (N, N)
+
         plt.imshow(rotated_im, cmap=plt.cm.Greys_r)
+        plt.title('Rotated on {} degrees Lena'.format(lena_angle))
+        plt.xlabel('x')
+        plt.ylabel('y')
 
 plt.show()
 
@@ -124,4 +144,68 @@ plt.show()
 
 
 #======================================================================================================================
-# Inverse Radon transform
+# Inverse Radon transform (backprojection version - Dual Radon Transform)
+# iradon_fft(sinogram) - Mozhde
+
+
+# I didn't rescale image gradient of color here
+def iradon_dual(sinogram):
+    assert sinogram.shape[0] == N
+    assert sinogram.shape[1] == num_of_angles
+
+    x = np.arange(N)
+
+    # the origin in the center of an image
+    X, XT = np.meshgrid( (x - (N/2)), -(x - (N/2)) )
+
+    image = np.zeros((N, N))
+    # sinogram.shape[1] == num_of_angles  (90 for now)
+    angles = np.linspace(0, np.pi, sinogram.shape[1], endpoint=False)
+
+    for n, alpha in enumerate(angles):
+        # rotate image to obtain the current projection
+        slice = X * np.cos(alpha) + XT * np.sin(alpha)
+        # let's reduce values of S+(1/2)*N to the interval [0, 1023]: if a > 1023 -> a:=1023; if a <= 0 -> a:=0
+        slice = np.clip(a=slice+(N/2), a_min=0, a_max=N-1, out=None)
+        # we will use 'slice' as indeces, so it should be consisted of integers
+        slice = slice.astype(int)
+        # reconstruct image slicewise
+        image += sinogram[slice, n]
+        print('observation angle (alpha [radian]): ', alpha)
+        print('======================================================================================================')
+        print('shape of sinogram[slice, n]: ', sinogram[slice, n].shape)
+        print('sinogram[slice, n]: ')
+        print('======================================================================================================')
+        print(sinogram[slice, n])
+        print('======================================================================================================')
+
+    image = image / len(angles)
+    assert image.shape == (N, N)
+    return image
+
+
+
+plt.figure(figsize=(12, 6))
+list_of_recovered_im = list()
+
+for i in range(num_images):
+    plt.subplot(1, 2, i+1)
+    recovered_im = iradon_dual(list_of_sinograms[i])
+    list_of_recovered_im.append(recovered_im)
+
+    plt.imshow(recovered_im, cmap=plt.cm.Greys_r)
+    if i == 0:
+        plt.title('Recovered Phantom (blurred)')
+        plt.xlabel('x')
+        plt.ylabel('y')
+    elif i == 1:
+        plt.title('Recovered Lena (blurred)')
+        plt.xlabel('x')
+        plt.ylabel('y')
+
+plt.show()
+
+
+
+#======================================================================================================================
+# Debluring is coming soon (I'm gonna do it through the night)
