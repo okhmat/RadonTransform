@@ -6,6 +6,10 @@ import numpy as np
 N = 1024
 num_images = 2
 
+
+
+
+
 #======================================================================================================================
 # Testing images loading/showing
 
@@ -42,6 +46,9 @@ for i in range(num_images):
         plt.ylabel('y')
 
 plt.show()
+
+
+
 
 
 #======================================================================================================================
@@ -81,6 +88,8 @@ plt.show()
 
 
 
+
+
 #======================================================================================================================
 # Radon transform
 
@@ -103,6 +112,8 @@ def radon(image, num_of_angles):
         sinogram[:, n] = np.sum(rotated_im, axis=0)
 
     return sinogram
+
+
 
 
 
@@ -134,13 +145,16 @@ for i in range(num_images):
     if i == 0:
         plt.title('Sinogram of Phantom for {} angles'.format(num_of_angles))
         plt.xlabel('Observation angle, [degrees]')
-        plt.ylabel('Sinogram (attenuation distribution)')
+        plt.ylabel('Projection position [pixels]')
     elif i == 1:
         plt.title('Sinogram of Lena for {} angles'.format(num_of_angles))
         plt.xlabel('Observation angle, [degrees]')
-        plt.ylabel('Sinogram (attenuation distribution)')
+        plt.ylabel('Projection position [pixels]')
 
 plt.show()
+
+
+
 
 
 #======================================================================================================================
@@ -171,13 +185,13 @@ def iradon_dual(sinogram):
         slice = slice.astype(int)
         # reconstruct image slicewise
         image += sinogram[slice, n]
-        print('observation angle (alpha [radian]): ', alpha)
-        print('======================================================================================================')
-        print('shape of sinogram[slice, n]: ', sinogram[slice, n].shape)
-        print('sinogram[slice, n]: ')
-        print('======================================================================================================')
-        print(sinogram[slice, n])
-        print('======================================================================================================')
+        # print('observation angle (alpha [radian]): ', alpha)
+        # print('======================================================================================================')
+        # print('shape of sinogram[slice, n]: ', sinogram[slice, n].shape)
+        # print('sinogram[slice, n]: ')
+        # print('======================================================================================================')
+        # print(sinogram[slice, n])
+        # print('======================================================================================================')
 
     image = image / len(angles)
     assert image.shape == (N, N)
@@ -207,5 +221,72 @@ plt.show()
 
 
 
+
+
 #======================================================================================================================
-# Debluring is coming soon (I'm gonna do it through the night)
+# Debluring using Hilbert transform (high-pass filter)
+
+# operators, which acts on sinogram one by one respectively
+
+# differentiating sinogram g(s - distance between origin and the slice, a - angle) over s --- d/ds(sinogram)
+def dif_sinogram_op(sinogram):
+    differentiated_sinogram = np.zeros_like(sinogram)
+    differentiated_sinogram[:-1] = sinogram[1:] - sinogram[:-1]
+    differentiated_sinogram[-1]  = sinogram[-1] - sinogram[-2]
+    return differentiated_sinogram
+
+#hilbert operator w.r.t. s - distance from origin to each slice (it means)
+def hilbert_op(sinogram):
+    assert sinogram.shape[0] == N
+    # operator H act on each projection position, that specifies by angle
+    h = np.zeros((N-1, ))
+
+    slice_ind_1 = np.int((N/2) - 1)
+    slice_ind_2 = np.int(N/2)
+
+    # we denote "Hilbert kernel" as h(t) = 1/(pi*t) -> h(t-tau) = 1/(pi*(t-tau))
+    h[:slice_ind_1] = -1.0 * np.reciprocal(np.arange(start=((N/2) - 1), stop=0,     step=-1))
+    h[slice_ind_2:] = +1.0 * np.reciprocal(np.arange(start=1,           stop=(N/2), step=+1))
+    h = h * np.reciprocal(np.pi)
+
+    filtered_sinogram = np.zeros_like(sinogram)
+    for i in range(sinogram.shape[1]): # sinogram.shape[1] = num_of_angles (observations)
+        filtered_sinogram[:, i] = np.convolve(a=sinogram[:, i], v=h, mode='same')
+    return filtered_sinogram
+
+# here we act on sinogram by operators, written above
+def iradon_deblur(sinogram):
+    differentiated_sinogram = dif_sinogram_op(sinogram)
+    filtered_sinogram = hilbert_op(differentiated_sinogram)
+    # function iradon_dual() means here backprojection operator
+    deblurred_im = iradon_dual(filtered_sinogram)
+    deblurred_im = (1/2) * deblurred_im
+    return deblurred_im
+
+
+plt.figure(figsize=(12,6))
+
+list_of_deblurred_im = list()
+
+for i in range(2):
+    plt.subplot(1, 2, i+1)
+    # reduce the values of image color to compare with the original, to the interval [0, 1] (the same as originals have)
+    deblurred_im = np.clip(a=iradon_deblur(list_of_sinograms[i]),
+                           a_min=0,
+                           a_max=1)
+
+    list_of_deblurred_im.append(deblurred_im)
+    plt.imshow(deblurred_im, cmap=plt.cm.Greys_r)
+    if i == 0:
+        plt.title('Recovered Phantom (deblurred)')
+        plt.xlabel('x')
+        plt.ylabel('y')
+    elif i == 1:
+        plt.title('Recovered Lena (deblurred)')
+        plt.xlabel('x')
+        plt.ylabel('y')
+
+plt.show()
+
+
+
