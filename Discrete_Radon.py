@@ -225,17 +225,21 @@ plt.show()
 
 #======================================================================================================================
 # Debluring using Hilbert transform (high-pass filter)
+# Basic formula (without proof): "\hat" denotes operator
+# (1/2) \hat R^* \hat H_s \hat (d/ds) (sinogram) == filtered_image
 
-# operators, which acts on sinogram one by one respectively
+# operators, which acts on sinogram one by one respectively are represented below as functions
 
-# differentiating sinogram g(s - distance between origin and the slice, a - angle) over s --- d/ds(sinogram)
+# \hat (d/ds)
+# differentiating sinogram g(s - distance between origin and the slice, a - angle) over s
 def dif_sinogram_op(sinogram):
     differentiated_sinogram = np.zeros_like(sinogram)
     differentiated_sinogram[:-1] = sinogram[1:] - sinogram[:-1]
     differentiated_sinogram[-1]  = sinogram[-1] - sinogram[-2]
     return differentiated_sinogram
 
-#hilbert operator w.r.t. s - distance from origin to each slice (it means)
+# \hat H_s
+# hilbert operator w.r.t. s - distance from origin to each slice
 def hilbert_op(sinogram):
     assert sinogram.shape[0] == N
     # operator H act on each projection position, that specifies by angle
@@ -254,6 +258,7 @@ def hilbert_op(sinogram):
         filtered_sinogram[:, i] = np.convolve(a=sinogram[:, i], v=h, mode='same')
     return filtered_sinogram
 
+# (1/2) \hat R^*
 # here we act on sinogram by operators, written above
 def iradon_deblur(sinogram):
     differentiated_sinogram = dif_sinogram_op(sinogram)
